@@ -1,18 +1,21 @@
 use serde::{ Deserialize, Serialize };
 use serde_json::json;
 use std::io::stdin;
-use std::process::Command;
+use crate::chat_mod::prompt::prompt;
+use reqwest::Client;
+use futures::StreamExt;
+use std::error::Error;
 
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct Message {
-    role: String,
-    content: String
+    pub role: String,
+    pub content: String
 }
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
-struct RequestBody {
+pub struct RequestBody {
     model: String,
-    messages: Vec<Message>,
+    pub messages: Vec<Message>,
     stream: bool
 }
 
@@ -38,10 +41,11 @@ struct ChatResponse {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct App {
+pub struct App {
+    pub assistant_name: String,
     url: String,
     api_key: String,
-    request_body: RequestBody
+    pub request_body: RequestBody
 }
 
 enum Menu {
@@ -53,8 +57,9 @@ enum Menu {
 impl Menu {
     fn form_handler(str: &String) -> Self{
         match str.trim().to_lowercase().as_str() {
-            "1"|"add" => Menu::PROMPT,
-            "2"|"edit" => Menu::CHAT,
+            "1"|"prompt" => Menu::PROMPT,
+            "2"|"chat" => Menu::CHAT,
+            "0"|"quit"|"exit" => Menu::BACK,
             _ => Menu::BACK
         }
     }
@@ -62,28 +67,40 @@ impl Menu {
 
 impl Default for App {
     fn default() -> Self {
+        let url = std::env::var("CHAT_URL").unwrap_or_else(|_| String::from("https://api.deepseek.com/chat/completions"));
+        let api_key = std::env::var("CHAT_API_KEY").expect("CHAT_API_KEY environment variable not set");
+        let mut request_body = RequestBody::default();
+        request_body.stream = true;
         Self { 
-            url: String::from("https://api.deepseek.com/chat/completions"),
-            api_key: String::from("sk-a9823c3f2a8d44869eea8422af8f7a92"),
-            request_body: RequestBody::default() 
+            assistant_name : String::from("user"),
+            url,
+            api_key,
+            request_body
         }
     }
 }
 
-fn chat(app: &mut App) {
+fn chat(app: &mut App) -> bool{
     app.request_body.model = String::from("deepseek-chat");
 
     println!("请输入对话内容：");
+    if !app.assistant_name.eq("user") {
+        println!("当前角色：{}", app.assistant_name);
+    }
     let mut sm = String::new();
     if let Err(e) = stdin().read_line(&mut sm) {
         eprintln!("读取输入失败: {}", e);
-        return;
+        return false;
     }
     sm = sm.trim().to_string();
+
+    if sm.eq(":b") {
+        return false;
+    }
     
     if sm.is_empty() {
         eprintln!("输入内容不能为空");
-        return;
+        return false;
     }
 
     // 将用户消息添加到请求体中
@@ -109,7 +126,7 @@ fn chat(app: &mut App) {
         Ok(response) => response,
         Err(e) => {
             eprintln!("发送请求失败: {}", e);
-            return;
+            return false;
         }
     };
 
@@ -118,7 +135,7 @@ fn chat(app: &mut App) {
         Ok(data) => data,
         Err(e) => {
             eprintln!("解析响应失败: {}", e);
-            return;
+            return false;
         }
     };
     
@@ -128,7 +145,7 @@ fn chat(app: &mut App) {
     
     if result.choices.is_empty() {
         eprintln!("响应中没有找到任何选择项");
-        return;
+        return false;
     }
     
     let message = &result.choices[0].message;
@@ -149,17 +166,53 @@ fn chat(app: &mut App) {
     println!("│ 完成 Token 数:     {:>18} │", usage.completion_tokens);
     println!("│ 总 Token 数:       {:>18} │", usage.total_tokens);
     println!("└───────────────────────────────────────┘");
+
+    return true;
 }
 
 pub fn chat_run() {
     let mut app = App::default();
-    if cfg!(target_os = "windows") {
-        let _ = Command::new("cmd").args(&["/C", "cls"]).status();
-    } else {
-        let _ = Command::new("clear").status();
-    }
-    println!("已进入聊天模式");
     loop {
-        chat(&mut app)
-    }
+        println!("==============================");
+        println!("请选择操作:");
+        println!("1. Prompt配置 (add)");
+        println!("2. 进入聊天 (edit)");
+        println!("0. 退出程序 (quit/exit)");
+        println!("==============================");
+        
+        let mut flag = String::new();
+        
+        // 改进错误处理信息
+        if let Err(e) = stdin().read_line(&mut flag) {
+            eprintln!("读取输入失败: {}", e);
+            continue;
+        }
+
+        let choice = Menu::form_handler(&flag);
+
+
+        match choice {
+            Menu::CHAT => {
+                println!("进入聊天模式");
+                loop {
+                    if !chat(&mut app) {
+                        break;
+                    }
+                }
+            },
+            Menu::PROMPT => {
+                println!("进入Prompt配置模式");
+                prompt(&mut app);
+            },
+            Menu::BACK => {
+                // 返回上级菜单
+                println!("退出程序");
+                break;
+            }
+        }
+        
+        // 等待用户按键继续
+        println!("按回车键继续...");
+        let _ = stdin().read_line(&mut String::new());
+    }   
 }
