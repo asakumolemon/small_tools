@@ -166,12 +166,11 @@ async fn stream_chat(app: &mut App, json_data: serde_json::Value) -> bool {
 
     let mut stream = response.bytes_stream();
     let mut full_content = String::new();
-    let mut role = String::new();
-    if !app.assistant_name.eq("user") {
-        role = app.assistant_name.clone();     
-    }else {
-        role = String::from("🤖 Assistant");
-    }
+    let role = if !app.assistant_name.eq("user") {
+        app.assistant_name.clone()     
+    } else {
+        String::from("🤖 Assistant")
+    };
 
     println!("================================================================================");
     println!("👤 角色: {}", role);
