@@ -4,7 +4,6 @@ use std::io::{stdin, Write};
 use crate::chat_mod::prompt::prompt;
 use reqwest::Client;
 use futures::StreamExt;
-use std::error::Error;
 
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]

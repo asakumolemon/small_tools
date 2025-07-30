@@ -2,7 +2,6 @@ use serde::{ Deserialize, Serialize };
 use std::path::Path;
 use std::fs::File;
 use std::io::{ Write };
-use std::process::Command;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Todo {
