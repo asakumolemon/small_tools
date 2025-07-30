@@ -70,11 +70,11 @@ impl PromptList {
 
     pub fn list_prompts(&self) {
         if self.prompts.is_empty() {
-            println!("暂无prompt配置");
+            println!("📭 暂无prompt配置");
             return;
         }
 
-        println!("当前prompt列表:");
+        println!("📋 当前prompt列表:");
         for (i, prompt) in self.prompts.iter().enumerate() {
             println!("{}. Role: {}, Content: {}", i + 1, prompt.role, prompt.content);
         }
@@ -114,17 +114,22 @@ impl Menu {
 pub fn prompt(app: &mut App) -> bool{
     let mut prompts = PromptList::load_from_file();
     
+    println!("================================================================================");
+    println!("🔧 Prompt 配置菜单");
+    println!("--------------------------------------------------------------------------------");
     println!("请选择操作:");
-    println!("1. 添加Prompt (add)");
-    println!("2. 编辑Prompt (edit)");
-    println!("3. 删除Prompt (delete)");
-    println!("4. 查看/选择Prompt (choose)");
-    println!("其他. 返回上级菜单");
+    println!("1. ➕ 添加Prompt (add)");
+    println!("2. ✏️  编辑Prompt (edit)");
+    println!("3. 🗑️  删除Prompt (delete)");
+    println!("4. 📋 查看/选择Prompt (choose)");
+    println!("其他. 🔙 返回上级菜单");
+    println!("================================================================================");
+    println!();
 
     let mut input = String::new();
 
     if let Err(error) = stdin().read_line(&mut input) {
-        eprintln!("读取输入失败: {}", error);
+        eprintln!("❌ 读取输入失败: {}", error);
         return false;
     }
 
@@ -132,17 +137,17 @@ pub fn prompt(app: &mut App) -> bool{
 
     match choice {
         Menu::ADD => {
-            println!("请输入Role:");
+            println!("👤 请输入Role:");
             let mut role = String::new();
             if stdin().read_line(&mut role).is_err() {
-                eprintln!("读取Role失败");
+                eprintln!("❌ 读取Role失败");
                 return false;
             }
             
-            println!("请输入Content:");
+            println!("📝 请输入Content:");
             let mut content = String::new();
             if stdin().read_line(&mut content).is_err() {
-                eprintln!("读取Content失败");
+                eprintln!("❌ 读取Content失败");
                 return false;
             }
             
@@ -152,7 +157,7 @@ pub fn prompt(app: &mut App) -> bool{
             };
             
             prompts.add_prompt(new_prompt);
-            println!("Prompt添加成功!");
+            println!("✅ Prompt添加成功!");
         },
         Menu::EDIT => {
             prompts.list_prompts();
@@ -160,37 +165,37 @@ pub fn prompt(app: &mut App) -> bool{
                 return true;
             }
             
-            println!("请输入要编辑的Prompt编号:");
+            println!("✏️  请输入要编辑的Prompt编号:");
             let mut index_input = String::new();
             if stdin().read_line(&mut index_input).is_err() {
-                eprintln!("读取输入失败");
+                eprintln!("❌ 读取输入失败");
                 return false;
             }
             
             let index: usize = match index_input.trim().parse() {
                 Ok(num) => num,
                 Err(_) => {
-                    eprintln!("请输入有效的数字");
+                    eprintln!("❌ 请输入有效的数字");
                     return false;
                 }
             };
             
             if index == 0 || index > prompts.prompts.len() {
-                eprintln!("无效的Prompt编号");
+                eprintln!("❌ 无效的Prompt编号");
                 return false;
             }
             
-            println!("请输入新的Role:");
+            println!("👤 请输入新的Role:");
             let mut role = String::new();
             if stdin().read_line(&mut role).is_err() {
-                eprintln!("读取Role失败");
+                eprintln!("❌ 读取Role失败");
                 return false;
             }
             
-            println!("请输入新的Content:");
+            println!("📝 请输入新的Content:");
             let mut content = String::new();
             if stdin().read_line(&mut content).is_err() {
-                eprintln!("读取Content失败");
+                eprintln!("❌ 读取Content失败");
                 return false;
             }
             
@@ -200,9 +205,9 @@ pub fn prompt(app: &mut App) -> bool{
             };
             
             if prompts.edit_prompt(index - 1, updated_prompt) {
-                println!("Prompt编辑成功!");
+                println!("✅ Prompt编辑成功!");
             } else {
-                eprintln!("编辑失败，无效的Prompt编号");
+                eprintln!("❌ 编辑失败，无效的Prompt编号");
                 return false;
             }
         },
@@ -212,30 +217,30 @@ pub fn prompt(app: &mut App) -> bool{
                 return true;
             }
             
-            println!("请输入要删除的Prompt编号:");
+            println!("🗑️  请输入要删除的Prompt编号:");
             let mut index_input = String::new();
             if stdin().read_line(&mut index_input).is_err() {
-                eprintln!("读取输入失败");
+                eprintln!("❌ 读取输入失败");
                 return false;
             }
             
             let index: usize = match index_input.trim().parse() {
                 Ok(num) => num,
                 Err(_) => {
-                    eprintln!("请输入有效的数字");
+                    eprintln!("❌ 请输入有效的数字");
                     return false;
                 }
             };
             
             if index == 0 || index > prompts.prompts.len() {
-                eprintln!("无效的Prompt编号");
+                eprintln!("❌ 无效的Prompt编号");
                 return false;
             }
             
             if prompts.delete_prompt(index - 1) {
-                println!("Prompt删除成功!");
+                println!("✅ Prompt删除成功!");
             } else {
-                eprintln!("删除失败，无效的Prompt编号");
+                eprintln!("❌ 删除失败，无效的Prompt编号");
                 return false;
             }
         },
@@ -245,23 +250,23 @@ pub fn prompt(app: &mut App) -> bool{
                 return true;
             }
             
-            println!("请输入要选择的Prompt编号作为对话的系统提示:");
+            println!("🔍 请输入要选择的Prompt编号作为对话的系统提示:");
             let mut index_input = String::new();
             if stdin().read_line(&mut index_input).is_err() {
-                eprintln!("读取输入失败");
+                eprintln!("❌ 读取输入失败");
                 return false;
             }
             
             let index: usize = match index_input.trim().parse() {
                 Ok(num) => num,
                 Err(_) => {
-                    eprintln!("请输入有效的数字");
+                    eprintln!("❌ 请输入有效的数字");
                     return false;
                 }
             };
             
             if index == 0 || index > prompts.prompts.len() {
-                eprintln!("无效的Prompt编号");
+                eprintln!("❌ 无效的Prompt编号");
                 return false;
             }
             
@@ -273,7 +278,7 @@ pub fn prompt(app: &mut App) -> bool{
                     content: selected_prompt.content.clone(),
                 });
                 app.assistant_name = selected_prompt.role.clone();
-                println!("已选择Prompt并设置为对话上下文");
+                println!("✅ 已选择Prompt并设置为对话上下文");
             }
         },
         Menu::BACK => {
@@ -283,7 +288,7 @@ pub fn prompt(app: &mut App) -> bool{
     
     // 保存到文件
     if let Err(e) = prompts.save_to_file() {
-        eprintln!("保存Prompt到文件失败: {}", e);
+        eprintln!("❌ 保存Prompt到文件失败: {}", e);
     }
     
     true

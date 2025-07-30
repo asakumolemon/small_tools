@@ -3,25 +3,47 @@ use small_tools::todo_mod::todo_list;
 use std::io::stdin;
 
 
+fn show_menu() {
+    println!("╔════════════════════════════════════════════════════════════════════════════════════════════╗");
+    println!("║                              欢迎使用多功能工具                                            ║");
+    println!("╠════════════════════════════════════════════════════════════════════════════════════════════╣");
+    println!("║  选项  │ 功能说明                                                                          ║");
+    println!("║────────┼───────────────────────────────────────────────────────────────────────────────────║");
+    println!("║   1    │ 待办事项列表 (todo_list)                                                          ║");
+    println!("║   2    │ 聊天模式 (chat)                                                                   ║");
+    println!("╚════════════════════════════════════════════════════════════════════════════════════════════╝");
+    println!();
+    println!("请选择功能（输入数字或命令）：");
+}
+
 fn main() {
     let mut input = String::new();
-    println!("用法:");
-    println!("  1 或 todo_list - 进入待办事项列表");
-    println!("  2 或 chat - 进入聊天模式");
-    stdin().read_line(&mut input).expect("读取输入失败");
-    let choice = Menu::form_handler(&input);
-    match choice {
-        Menu::TODO => {
-            todo_list::todo_run();
-        },
-        Menu::CHAT => {
-            chat::chat_run();
-        },
-        Menu::SHOW => {
-            println!("用法:");
-            println!("  1 或 todo_list - 进入待办事项列表");
-            println!("  2 或 chat - 进入聊天模式");
+    
+    show_menu();
+    
+    loop {
+        input.clear();
+        match stdin().read_line(&mut input) {
+            Ok(_) => {
+                let choice = Menu::form_handler(&input);
+                match choice {
+                    Menu::TODO => {
+                        todo_list::todo_run();
+                    },
+                    Menu::CHAT => {
+                        chat::chat_run();
+                    },
+                    Menu::SHOW => {
+                        show_menu();
+                    }
+                }
+            },
+            Err(_) => {
+                println!("读取输入失败，请重试：");
+            }
         }
+        show_menu();
+
     }
 }
 

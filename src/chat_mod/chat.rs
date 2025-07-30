@@ -1,6 +1,6 @@
 use serde::{ Deserialize, Serialize };
 use serde_json::json;
-use std::io::stdin;
+use std::io::{stdin, Write};
 use crate::chat_mod::prompt::prompt;
 use reqwest::Client;
 use futures::StreamExt;
@@ -12,6 +12,7 @@ pub struct Message {
     pub role: String,
     pub content: String
 }
+
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct RequestBody {
     model: String,
@@ -38,6 +39,25 @@ struct ChatResponse {
     model: String,
     choices: Vec<Choice>,
     usage: Usage,
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+struct ChatResponseChunk {
+    model: String,
+    choices: Vec<ChoiceChunk>,
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+struct ChoiceChunk {
+    delta: MessageDelta,
+    finish_reason: Option<String>,
+    index: u32,
+}
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+struct MessageDelta {
+    role: Option<String>,
+    content: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -83,13 +103,10 @@ impl Default for App {
 fn chat(app: &mut App) -> bool{
     app.request_body.model = String::from("deepseek-chat");
 
-    println!("请输入对话内容：");
-    if !app.assistant_name.eq("user") {
-        println!("当前角色：{}", app.assistant_name);
-    }
+    println!("💬 请输入对话内容：");
     let mut sm = String::new();
     if let Err(e) = stdin().read_line(&mut sm) {
-        eprintln!("读取输入失败: {}", e);
+        eprintln!("❌ 读取输入失败: {}", e);
         return false;
     }
     sm = sm.trim().to_string();
@@ -99,7 +116,7 @@ fn chat(app: &mut App) -> bool{
     }
     
     if sm.is_empty() {
-        eprintln!("输入内容不能为空");
+        eprintln!("⚠️ 输入内容不能为空");
         return false;
     }
 
@@ -108,7 +125,7 @@ fn chat(app: &mut App) -> bool{
         role: String::from("user"),
         content: sm,
     });
-    app.request_body.stream = false;
+    app.request_body.stream = true; // 启用流式输出
 
     // 创建要发送的JSON数据
     let json_data = json!({
@@ -117,83 +134,129 @@ fn chat(app: &mut App) -> bool{
         "stream": &app.request_body.stream
     });
 
+    // 使用异步运行时执行流式请求
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        stream_chat(app, json_data).await
+    })
+}
+
+async fn stream_chat(app: &mut App, json_data: serde_json::Value) -> bool {
+    let client = Client::new();
+    
     // 发送包含请求体的POST请求
-    let rm = match ureq::post(&app.url)
+    let response = match client
+        .post(&app.url)
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", app.api_key))
-        .send_json(json_data)
+        .json(&json_data)
+        .send()
+        .await
     {
         Ok(response) => response,
         Err(e) => {
-            eprintln!("发送请求失败: {}", e);
+            eprintln!("❌ 发送请求失败: {}", e);
             return false;
         }
     };
 
-    let result: Result<ChatResponse, ureq::Error> = rm.into_body().read_json();
-    let result = match result {
-        Ok(data) => data,
-        Err(e) => {
-            eprintln!("解析响应失败: {}", e);
-            return false;
-        }
-    };
-    
-    // 提取需要的信息
-    let model_name = result.model.clone();
-    let usage = result.usage.clone();
-    
-    if result.choices.is_empty() {
-        eprintln!("响应中没有找到任何选择项");
+    if !response.status().is_success() {
+        eprintln!("❌ 请求失败，状态码: {}", response.status());
         return false;
     }
-    
-    let message = &result.choices[0].message;
-    let role = message.role.clone();
-    let content = message.content.clone();
 
-    app.request_body.messages.push(Message { role: role.clone(), content: content.clone() });
-    
-    // 打印解析后的信息
-    println!("========================================");
-    println!("模型名称: {}", model_name);
-    println!("角色:     {}", role);
-    println!("回复内容: {}", content);
-    println!("========================================");
-    println!("Token 使用情况:");
-    println!("┌───────────────────────────────────────┐");
-    println!("│ 提示 Token 数:     {:>18} │", usage.prompt_tokens);
-    println!("│ 完成 Token 数:     {:>18} │", usage.completion_tokens);
-    println!("│ 总 Token 数:       {:>18} │", usage.total_tokens);
-    println!("└───────────────────────────────────────┘");
+    let mut stream = response.bytes_stream();
+    let mut full_content = String::new();
+    let mut role = String::new();
+    if !app.assistant_name.eq("user") {
+        role = app.assistant_name.clone();     
+    }else {
+        role = String::from("🤖 Assistant");
+    }
 
-    return true;
+    println!("================================================================================");
+    println!("👤 角色: {}", role);
+    println!("--------------------------------------------------------------------------------");
+    print!("💬 回复: ");
+    
+    // 实时处理流式响应
+    while let Some(chunk) = stream.next().await {
+        match chunk {
+            Ok(bytes) => {
+                let chunk_str = String::from_utf8_lossy(&bytes);
+                let lines: Vec<&str> = chunk_str.split('\n').collect();
+                
+                for line in lines {
+                    if line.starts_with("data: ") {
+                        let data = &line[6..]; // 移除 "data: " 前缀
+                        
+                        if data == "[DONE]" {
+                            // 流完成
+                            break;
+                        }
+                        
+                        // 解析JSON数据
+                        match serde_json::from_str::<ChatResponseChunk>(data) {
+                             Ok(chunk_data) => {
+                                if let Some(choice) = chunk_data.choices.first() {
+                                    if let Some(ref delta) = choice.delta.content {
+                                        print!("{}", delta);
+                                        std::io::stdout().flush().unwrap(); // 立即刷新输出
+                                        full_content.push_str(delta);
+                                    }
+                                }
+                            }
+                            Err(_) => {
+                                // 忽略解析错误，可能是一些特殊格式的数据
+                            }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("❌ 接收数据时出错: {}", e);
+                return false;
+            }
+        }
+    }
+    
+    println!("\n================================================================================");
+    
+    // 将助手的回复添加到消息历史中
+    app.request_body.messages.push(Message { 
+        role: "assistant".to_string(), 
+        content: full_content.clone() 
+    });
+    
+    true
 }
 
 pub fn chat_run() {
     let mut app = App::default();
     loop {
-        println!("==============================");
-        println!("请选择操作:");
-        println!("1. Prompt配置 (add)");
-        println!("2. 进入聊天 (edit)");
-        println!("0. 退出程序 (quit/exit)");
-        println!("==============================");
+        println!("╔══════════════════════════════════════╗");
+        println!("║          🤖 聊天模式菜单             ║");
+        println!("╠══════════════════════════════════════╣");
+        println!("║  选项  │ 功能说明                    ║");
+        println!("║────────┼─────────────────────────────║");
+        println!("║   1    │ 🛠️ Prompt配置 (prompt)       ║");
+        println!("║   2    │ 💬 进入聊天 (chat)          ║");
+        println!("║   0    │ 🚪 退出程序 (quit/exit)     ║");
+        println!("╚══════════════════════════════════════╝");
         
         let mut flag = String::new();
         
         // 改进错误处理信息
         if let Err(e) = stdin().read_line(&mut flag) {
-            eprintln!("读取输入失败: {}", e);
+            eprintln!("❌ 读取输入失败: {}", e);
             continue;
         }
 
         let choice = Menu::form_handler(&flag);
 
-
         match choice {
             Menu::CHAT => {
-                println!("进入聊天模式");
+                println!("💬 进入聊天模式（“:b”退出）");
                 loop {
                     if !chat(&mut app) {
                         break;
@@ -201,12 +264,12 @@ pub fn chat_run() {
                 }
             },
             Menu::PROMPT => {
-                println!("进入Prompt配置模式");
+                println!("🛠️ 进入Prompt配置模式");
                 prompt(&mut app);
             },
             Menu::BACK => {
                 // 返回上级菜单
-                println!("退出程序");
+                println!("🚪 退出程序");
                 break;
             }
         }

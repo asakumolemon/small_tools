@@ -23,7 +23,11 @@ impl Todo {
             .expect("Failed to convert create_time timestamp");
         let ddl = chrono::DateTime::from_timestamp(self.dead_line, 0)
             .expect("Failed to convert dead_line timestamp");
-        println!("{{ Title : {} }}\n{{ Content : {} , Create Time : {} , Deadline : {} }}\n",self.title,self.content,ct,ddl);
+        println!("标题: {}", self.title);
+        println!("内容: {}", self.content);
+        println!("创建时间: {}", ct.format("%Y-%m-%d %H:%M:%S"));
+        println!("截止时间: {}", ddl.format("%Y-%m-%d %H:%M:%S"));
+        println!("────────────────────────────────────────");
     }
 }
 
@@ -49,17 +53,6 @@ impl Handler {
         }
     }
 }
-
-
-// 添加这个函数到你的代码中
-fn clear_screen() {
-    if cfg!(target_os = "windows") {
-        let _ = Command::new("cmd").args(&["/C", "cls"]).status();
-    } else {
-        let _ = Command::new("clear").status();
-    }
-}
-
 
 impl Todos {
 
@@ -110,17 +103,30 @@ impl Todos {
         input.trim_end().to_string()
     }
 
-    fn remove_todo(&mut self) {
-        let mut todo = Todo::default();
-        println!("输入待办标题：");
-        std::io::stdin().read_line(&mut todo.title).expect("msg");
-        todo.title = todo.title.trim_end().to_string();
-        let index = self.todos.iter().position(|t| t.title.eq(&todo.title));
-        if let Some(index) = index {
-            self.todos.remove(index);
+        fn remove_todo(&mut self) {
+            println!("输入待办标题：");
+            let mut title = String::new();
+            match std::io::stdin().read_line(&mut title) {
+                Ok(_) => {
+                    title = title.trim_end().to_string();
+                    if title.is_empty() {
+                        println!("标题不能为空");
+                        return;
+                    }
+                    let index = self.todos.iter().position(|t| t.title.trim() == title);
+                    if let Some(index) = index {
+                        let removed_todo = self.todos.remove(index);
+                        println!("成功删除待办事项: {}", removed_todo.title);
+                    } else {
+                        println!("未找到标题为 '{}' 的待办事项", title);
+                    }
+                    let _ = self.save_todos();
+                }
+                Err(error) => {
+                    println!("读取输入时发生错误: {}", error);
+                }
+            }
         }
-        let _ = self.save_todos();
-    }
 
     fn edit_todo(&mut self) {
         let mut todo = Todo::default();
@@ -141,11 +147,17 @@ impl Todos {
                                 match std::io::stdin().read_line(&mut ddl) {
                                     Ok(_) => {
                                         // 验证时间输入是否为有效数字
-                                        if ddl.trim().parse::<u32>().is_ok() {
-                                            // 直接替换而不是先删后加，保持顺序
-                                            self.todos[index] = todo;
-                                        } else {
-                                            println!("时间限制必须为有效数字");
+                                        match ddl.trim().parse::<u32>() {
+                                            Ok(days) => {
+                                                todo.create_time = chrono::Local::now().timestamp();
+                                                todo.dead_line = chrono::Local::now().timestamp() + (days as i64) * 24 * 3600;
+                                                // 直接替换而不是先删后加，保持顺序
+                                                self.todos[index] = todo;
+                                                println!("成功更新待办事项!");
+                                            },
+                                            Err(_) => {
+                                                println!("时间限制必须为有效数字");
+                                            }
                                         }
                                     },
                                     Err(error) => {
@@ -170,8 +182,15 @@ impl Todos {
     }
 
     fn show_todos(&self) {
-        for t in self.todos.iter() {
-            t.show();
+        if self.todos.is_empty() {
+            println!("暂无待办事项");
+        } else {
+            println!("待办事项列表:");
+            println!("════════════════════════════════════════════════════════════════════════");
+            for (i, t) in self.todos.iter().enumerate() {
+                println!("{}. ", i + 1);
+                t.show();
+            }
         }
     }
 }
@@ -181,13 +200,25 @@ pub fn todo_run() {
     let _ = todos.load_todos();
     loop {
         todos.show_todos();
-        println!("\n请选择操作:");
-        println!("1. 添加待办事项 (insert/add)");
-        println!("2. 编辑待办事项 (edit)");
-        println!("3. 删除待办事项 (remove/delete)");
-        println!("4. 显示待办事项 (show/list)");
+        println!("\n╔════════════════════════════════════════════════════════════════════════╗");
+        println!("║                              操作菜单                                  ║");
+        println!("╠════════════════════════════════════════════════════════════════════════╣");
+        println!("║  选项  │ 功能说明                                                      ║");
+        println!("║────────┼───────────────────────────────────────────────────────────────║");
+        println!("║   1    │ 添加待办事项 (insert/add)                                     ║");
+        println!("║   2    │ 编辑待办事项 (edit)                                           ║");
+        println!("║   3    │ 删除待办事项 (remove/delete)                                  ║");
+        println!("║   4    │ 显示待办事项 (show/list)                                      ║");
+        println!("║   q    │ 退出                                                          ║");
+        println!("╚════════════════════════════════════════════════════════════════════════╝");
+        println!("请选择操作:");
         let mut flag = String::new();
-        std::io::stdin().read_line(&mut flag).expect("test");
+        std::io::stdin().read_line(&mut flag).expect("读取输入失败");
+        let choice = flag.trim().to_lowercase();
+        if choice == "q" || choice == "quit" || choice == "exit" {
+            println!("感谢使用待办事项列表！");
+            break;
+        }
         match Handler::analyse_flag(&flag) {
             Handler::INSERT => {
                 todos.insert_todo();
@@ -201,6 +232,5 @@ pub fn todo_run() {
                 todos.remove_todo();
             }
         }
-        clear_screen();
     }
 }
