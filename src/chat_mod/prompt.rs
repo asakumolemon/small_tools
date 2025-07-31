@@ -27,7 +27,7 @@ impl PromptList {
         let path = if cfg!(windows) {
             // Windows系统使用AppData目录
             dirs::data_local_dir().map(|mut p| {
-                p.push("TodoList");
+                p.push("SmallTool");
                 p.push("prompts.json");
                 p
             }).unwrap_or_else(|| {
@@ -65,7 +65,7 @@ impl PromptList {
         let path = if cfg!(windows) {
             // Windows系统使用AppData目录
             dirs::data_local_dir().map(|mut p| {
-                p.push("TodoList");
+                p.push("SmallTool");
                 p.push("prompts.json");
                 p
             }).unwrap_or_else(|| {
