@@ -1,7 +1,10 @@
 use serde::{ Deserialize, Serialize };
 use serde_json::json;
 use std::io::{stdin, Write};
+use crate::chat_mod::model::ModelList;
 use crate::chat_mod::prompt::prompt;
+use crate::chat_mod::model::model_management;
+use crate::chat_mod::model::Model;
 use reqwest::Client;
 use futures::StreamExt;
 
@@ -15,7 +18,6 @@ pub struct Message {
 
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct RequestBody {
-    model: String,
     pub messages: Vec<Message>,
     stream: bool
 }
@@ -63,12 +65,13 @@ struct MessageDelta {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct App {
     pub assistant_name: String,
-    url: String,
-    api_key: String,
+    model: Model,
+    models: ModelList,
     pub request_body: RequestBody
 }
 
 enum Menu {
+    MODEL,
     PROMPT,
     CHAT,
     BACK
@@ -77,8 +80,9 @@ enum Menu {
 impl Menu {
     fn form_handler(str: &String) -> Self{
         match str.trim().to_lowercase().as_str() {
-            "1"|"prompt" => Menu::PROMPT,
-            "2"|"chat" => Menu::CHAT,
+            "1"|"model" => Menu::MODEL,
+            "2"|"prompt" => Menu::PROMPT,
+            "3"|"chat" => Menu::CHAT,
             "0"|"quit"|"exit" => Menu::BACK,
             _ => Menu::BACK
         }
@@ -87,21 +91,31 @@ impl Menu {
 
 impl Default for App {
     fn default() -> Self {
-        let url = std::env::var("CHAT_URL").unwrap_or_else(|_| String::from("https://api.deepseek.com/chat/completions"));
-        let api_key = std::env::var("CHAT_API_KEY").expect("CHAT_API_KEY environment variable not set");
+        let mut model = Model::default();
+        let models = ModelList::load_from_file();
+        if models.models.is_empty() {
+            model.model_name = String::from("deepseek-chat");
+            model.url = std::env::var("CHAT_URL").unwrap_or_else(|_| String::from("https://api.deepseek.com/chat/completions"));
+            model.api_key = std::env::var("CHAT_API_KEY").expect("CHAT_API_KEY environment variable not set");
+        } else {
+            model = models.get_default_model()
+                .or_else(|| models.get_model(0))
+                .cloned()
+                .unwrap_or_default();
+        }
         let mut request_body = RequestBody::default();
         request_body.stream = true;
         Self { 
             assistant_name : String::from("user"),
-            url,
-            api_key,
+            model,
+            models,
             request_body
         }
     }
 }
 
 fn chat(app: &mut App) -> bool{
-    app.request_body.model = String::from("deepseek-chat");
+    // app.request_body.model = String::from("deepseek-chat");
 
     println!("💬 请输入对话内容：");
     let mut sm = String::new();
@@ -129,7 +143,7 @@ fn chat(app: &mut App) -> bool{
 
     // 创建要发送的JSON数据
     let json_data = json!({
-        "model": &app.request_body.model,
+        "model": &app.model.model_name,
         "messages": &app.request_body.messages,
         "stream": &app.request_body.stream
     });
@@ -146,9 +160,9 @@ async fn stream_chat(app: &mut App, json_data: serde_json::Value) -> bool {
     
     // 发送包含请求体的POST请求
     let response = match client
-        .post(&app.url)
+        .post(&app.model.url)
         .header("Content-Type", "application/json")
-        .header("Authorization", format!("Bearer {}", app.api_key))
+        .header("Authorization", format!("Bearer {}", app.model.api_key))
         .json(&json_data)
         .send()
         .await
@@ -238,8 +252,9 @@ pub fn chat_run() {
         println!("╠══════════════════════════════════════╣");
         println!("║  选项  │ 功能说明                    ║");
         println!("║────────┼─────────────────────────────║");
-        println!("║   1    │ 🛠️ Prompt配置 (prompt)     ║");
-        println!("║   2    │ 💬 进入问答 (chat)          ║");
+        println!("║   1    │ 🤖 模型配置 (model)         ║");
+        println!("║   2    │ 🛠️ Prompt配置 (prompt)     ║");
+        println!("║   3    │ 💬 进入问答 (chat)          ║");
         println!("║   0    │ 🚪 退出程序 (quit/exit)     ║");
         println!("╚══════════════════════════════════════╝");
         
@@ -254,6 +269,14 @@ pub fn chat_run() {
         let choice = Menu::form_handler(&flag);
 
         match choice {
+            Menu::MODEL => {
+                println!("🤖 进入模型配置模式");
+                model_management();
+            },
+            Menu::PROMPT => {
+                println!("🛠️ 进入Prompt配置模式");
+                prompt(&mut app);
+            },
             Menu::CHAT => {
                 println!("💬 进入问答模式（“:b”退出）");
                 loop {
@@ -261,10 +284,6 @@ pub fn chat_run() {
                         break;
                     }
                 }
-            },
-            Menu::PROMPT => {
-                println!("🛠️ 进入Prompt配置模式");
-                prompt(&mut app);
             },
             Menu::BACK => {
                 // 返回上级菜单
