@@ -37,7 +37,7 @@ impl ModelList {
         } else {
             // 非Windows系统保持原逻辑
             dirs::data_dir().map(|mut p| {
-                p.push("todo_list");
+                p.push("small_tools");
                 p.push("models.json");
                 p
             }).unwrap_or_else(|| {
@@ -75,7 +75,7 @@ impl ModelList {
         } else {
             // 非Windows系统保持原逻辑
             dirs::data_dir().map(|mut p| {
-                p.push("todo_list");
+                p.push("small_tools");
                 p.push("models.json");
                 p
             }).unwrap_or_else(|| {
