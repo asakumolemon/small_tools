@@ -95,8 +95,8 @@ impl Default for App {
         let models = ModelList::load_from_file();
         if models.models.is_empty() {
             model.model_name = String::from("deepseek-chat");
-            model.url = std::env::var("CHAT_URL").unwrap_or_else(|_| String::from("https://api.deepseek.com/chat/completions"));
-            model.api_key = std::env::var("CHAT_API_KEY").expect("CHAT_API_KEY environment variable not set");
+            model.url = std::env::var("CHAT_URL").unwrap_or_default();
+            model.api_key = std::env::var("CHAT_API_KEY").unwrap_or_default();
         } else {
             model = models.get_default_model()
                 .or_else(|| models.get_model(0))
