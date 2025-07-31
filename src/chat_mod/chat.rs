@@ -6,6 +6,7 @@ use reqwest::Client;
 use futures::StreamExt;
 
 
+
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct Message {
     pub role: String,
@@ -275,5 +276,5 @@ pub fn chat_run() {
         // 等待用户按键继续
         println!("按回车键继续...");
         let _ = stdin().read_line(&mut String::new());
-    }   
+    }
 }

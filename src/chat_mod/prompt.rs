@@ -24,7 +24,28 @@ impl PromptList {
     }
 
     pub fn load_from_file() -> Self {
-        let path = Path::new("prompts.json");
+        let path = if cfg!(windows) {
+            // Windows系统使用AppData目录
+            dirs::data_local_dir().map(|mut p| {
+                p.push("TodoList");
+                p.push("prompts.json");
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取AppData目录，则使用当前目录
+                Path::new("prompts.json").to_path_buf()
+            })
+        } else {
+            // 非Windows系统保持原逻辑
+            dirs::data_dir().map(|mut p| {
+                p.push("todo_list");
+                p.push("prompts.json");
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取数据目录，则使用当前目录
+                Path::new("prompts.json").to_path_buf()
+            })
+        };
+        
         if path.exists() {
             match fs::read_to_string(path) {
                 Ok(content) => {
@@ -41,8 +62,35 @@ impl PromptList {
     }
 
     pub fn save_to_file(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = if cfg!(windows) {
+            // Windows系统使用AppData目录
+            dirs::data_local_dir().map(|mut p| {
+                p.push("TodoList");
+                p.push("prompts.json");
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取AppData目录，则使用当前目录
+                Path::new("prompts.json").to_path_buf()
+            })
+        } else {
+            // 非Windows系统保持原逻辑
+            dirs::data_dir().map(|mut p| {
+                p.push("todo_list");
+                p.push("prompts.json");
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取数据目录，则使用当前目录
+                Path::new("prompts.json").to_path_buf()
+            })
+        };
+        
+        // 确保目录存在
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
         let json = serde_json::to_string_pretty(self)?;
-        fs::write("prompts.json", json)?;
+        fs::write(path, json)?;
         Ok(())
     }
 
