@@ -7,6 +7,8 @@ use crate::chat_mod::model::model_management;
 use crate::chat_mod::model::Model;
 use reqwest::Client;
 use futures::StreamExt;
+use std::fs::File;
+use std::path::Path;
 
 
 
@@ -114,6 +116,50 @@ impl Default for App {
     }
 }
 
+impl App {
+    fn save(&self) -> Result<(), std::io::Error> {
+        let path = if cfg!(windows) {
+            // Windows系统使用AppData目录
+            dirs::data_local_dir().map(|mut p| {
+                p.push("SmallTool");
+                p.push("History");
+                p.push(format!("{}.md", &self.request_body.messages[0].content));
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取AppData目录，则使用当前目录
+                Path::new(format!("{}.md", &self.request_body.messages[0].content).as_str()).to_path_buf()
+            })
+        } else {
+            // 非Windows系统保持原逻辑
+            dirs::data_dir().map(|mut p| {
+                p.push("small_tools");
+                p.push("history");
+                p.push(format!("{}.md", &self.request_body.messages[0].content));
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取数据目录，则使用当前目录
+                Path::new(format!("{}.md", &self.request_body.messages[0].content).as_str()).to_path_buf()
+            })
+        };
+        
+        // 确保目录存在
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
+        let mut file = File::create(path)?;
+
+        let mut mh = String::new();
+        for message in &self.request_body.messages {
+            mh += &format!("{}\n{}\n", message.role, message.content);
+        }
+        file.write_all(mh.as_bytes())?;
+        file.flush()?;
+
+        Ok(())
+    }
+}
+
 fn chat(app: &mut App) -> bool{
     // app.request_body.model = String::from("deepseek-chat");
 
@@ -123,6 +169,12 @@ fn chat(app: &mut App) -> bool{
         eprintln!("❌ 读取输入失败: {}", e);
         return false;
     }
+        
+    if sm.is_empty() {
+        eprintln!("⚠️ 输入内容不能为空");
+        return false;
+    }
+
     sm = sm.trim().to_string();
 
     if sm.eq(":b") {
@@ -133,7 +185,7 @@ fn chat(app: &mut App) -> bool{
         app.request_body.messages.clear();
         return true;
     }
-
+    
     if sm.eq(":cls") {
         print!("\x1B[2J\x1B[1;1H");
         return true;
@@ -148,10 +200,10 @@ fn chat(app: &mut App) -> bool{
         app.request_body.messages.pop();
         return true;
     }
-    
-    if sm.is_empty() {
-        eprintln!("⚠️ 输入内容不能为空");
-        return false;
+
+    if sm.eq(":save") {
+        app.save().expect("保存失败");
+        return true;
     }
 
     // 将用户消息添加到请求体中
