@@ -118,6 +118,11 @@ impl Default for App {
 
 impl App {
     fn save(&self) -> Result<(), std::io::Error> {
+
+        if self.request_body.messages.is_empty() {
+            return Ok(());
+        }
+
         let path = if cfg!(windows) {
             // Windows系统使用AppData目录
             dirs::data_local_dir().map(|mut p| {
