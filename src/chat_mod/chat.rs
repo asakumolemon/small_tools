@@ -134,7 +134,7 @@ fn chat(app: &mut App) -> bool{
         return true;
     }
 
-    if sm.eq("cls") {
+    if sm.eq(":cls") {
         print!("\x1B[2J\x1B[1;1H");
         return true;
     }
