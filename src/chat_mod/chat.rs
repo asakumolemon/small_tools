@@ -128,6 +128,11 @@ fn chat(app: &mut App) -> bool{
     if sm.eq(":b") {
         return false;
     }
+
+    if sm.eq(":c") {
+        app.request_body.messages.clear();
+        return true;
+    }
     
     if sm.is_empty() {
         eprintln!("⚠️ 输入内容不能为空");
