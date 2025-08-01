@@ -138,6 +138,16 @@ fn chat(app: &mut App) -> bool{
         print!("\x1B[2J\x1B[1;1H");
         return true;
     }
+
+    if sm.eq(":revert") {
+        if app.request_body.messages.len() < 2 {
+            eprintln!("⚠️ 没有可撤销的消息");
+            return true;
+        }
+        app.request_body.messages.pop();
+        app.request_body.messages.pop();
+        return true;
+    }
     
     if sm.is_empty() {
         eprintln!("⚠️ 输入内容不能为空");
