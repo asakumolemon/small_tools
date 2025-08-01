@@ -163,6 +163,62 @@ impl App {
 
         Ok(())
     }
+
+    fn load_history_file(&mut self, file_name: &String) {
+        let path = if cfg!(windows) {
+            // Windows系统使用AppData目录
+            dirs::data_local_dir().map(|mut p| {
+                p.push("SmallTool");
+                p.push("History");
+                p.push(format!("{}.md", file_name));
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取AppData目录，则使用当前目录
+                Path::new(format!("{}.md", file_name).as_str()).to_path_buf()
+            })
+        } else {
+            // 非Windows系统保持原逻辑
+            dirs::data_dir().map(|mut p| {
+                p.push("small_tools");
+                p.push("history");
+                p.push(format!("{}.md", file_name));
+                p
+            }).unwrap_or_else(|| {
+                // 如果无法获取数据目录，则使用当前目录
+                Path::new(format!("{}.md", file_name).as_str()).to_path_buf()
+            })
+        };
+
+        if !path.exists() {
+            println!("⚠️ 历史文件不存在");
+            return;
+        }
+
+        let mh = std::fs::read_to_string(&path);
+
+        let messages: Vec<Message> = mh.unwrap_or_default()
+            .split("\n")
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split(": ").collect();
+                if parts.len() != 2 {
+                    return None;
+                }
+                let role = parts[0].trim();
+                let content = parts[1].trim();
+                Some(Message {
+                    role: role.to_string(),
+                    content: content.to_string(),
+                })
+            }).collect();
+
+        self.request_body.messages = messages;
+
+        println!("📜 历史记录：");
+        for message in &self.request_body.messages {
+            println!("{}:\n{}", message.role, message.content);
+        }
+
+    }
 }
 
 fn chat(app: &mut App) -> bool{
@@ -208,6 +264,14 @@ fn chat(app: &mut App) -> bool{
 
     if sm.eq(":save") {
         app.save().expect("保存失败");
+        return true;
+    }
+
+    if sm.starts_with("history:") {
+        // 从命令中提取文件名
+        let file_name = sm.trim_start_matches("history:").trim().to_string();
+        // 加载历史记录文件
+        app.load_history_file(&file_name);
         return true;
     }
 
