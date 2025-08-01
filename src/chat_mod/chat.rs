@@ -155,8 +155,22 @@ impl App {
         let mut file = File::create(path)?;
 
         let mut mh = String::new();
+
+        let mut count = 0;
+
         for message in &self.request_body.messages {
-            mh += &format!("{}\n{}\n", message.role, message.content);
+            if count == 0  {
+                count+=1;
+                continue;
+            }
+            if count%2 == 1 {
+                count+=1;
+                mh += &format!("{}:\n{}\n", "用户", message.content);
+            }
+            if count%2 == 0 {
+                count+=1;
+                mh += &format!("{}\n{}\n", self.assistant_name, message.content);
+            }
         }
         file.write_all(mh.as_bytes())?;
         file.flush()?;
