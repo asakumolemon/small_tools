@@ -117,7 +117,7 @@ impl Default for App {
 }
 
 impl App {
-    fn save(&self) -> Result<(), std::io::Error> {
+    fn save(&self, file_name: &String) -> Result<(), std::io::Error> {
 
         if self.request_body.messages.is_empty() {
             return Ok(());
@@ -128,22 +128,22 @@ impl App {
             dirs::data_local_dir().map(|mut p| {
                 p.push("SmallTool");
                 p.push("History");
-                p.push(format!("{}.md", &self.request_body.messages[0].content));
+                p.push(format!("{}.md", file_name));
                 p
             }).unwrap_or_else(|| {
                 // 如果无法获取AppData目录，则使用当前目录
-                Path::new(format!("{}.md", &self.request_body.messages[0].content).as_str()).to_path_buf()
+                Path::new(format!("{}.md", file_name).as_str()).to_path_buf()
             })
         } else {
             // 非Windows系统保持原逻辑
             dirs::data_dir().map(|mut p| {
                 p.push("small_tools");
                 p.push("history");
-                p.push(format!("{}.md", &self.request_body.messages[0].content));
+                p.push(format!("{}.md", file_name));
                 p
             }).unwrap_or_else(|| {
                 // 如果无法获取数据目录，则使用当前目录
-                Path::new(format!("{}.md", &self.request_body.messages[0].content).as_str()).to_path_buf()
+                Path::new(format!("{}.md", file_name).as_str()).to_path_buf()
             })
         };
         
@@ -262,14 +262,15 @@ fn chat(app: &mut App) -> bool{
         return true;
     }
 
-    if sm.eq(":save") {
-        app.save().expect("保存失败");
+    if sm.starts_with(":save:") {
+        let file_name = sm.trim_start_matches(":save:").trim().to_string();
+        app.save(&file_name).expect("保存失败");
         return true;
     }
 
-    if sm.starts_with(":history:") {
+    if sm.starts_with(":load:") {
         // 从命令中提取文件名
-        let file_name = sm.trim_start_matches(":history:").trim().to_string();
+        let file_name = sm.trim_start_matches(":load:").trim().to_string();
         // 加载历史记录文件
         app.load_history_file(&file_name);
         return true;
