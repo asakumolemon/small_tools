@@ -133,6 +133,11 @@ fn chat(app: &mut App) -> bool{
         app.request_body.messages.clear();
         return true;
     }
+
+    if sm.eq("cls") {
+        print!("\x1B[2J\x1B[1;1H");
+        return true;
+    }
     
     if sm.is_empty() {
         eprintln!("⚠️ 输入内容不能为空");
