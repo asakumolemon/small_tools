@@ -267,9 +267,9 @@ fn chat(app: &mut App) -> bool{
         return true;
     }
 
-    if sm.starts_with("history:") {
+    if sm.starts_with(":history:") {
         // 从命令中提取文件名
-        let file_name = sm.trim_start_matches("history:").trim().to_string();
+        let file_name = sm.trim_start_matches(":history:").trim().to_string();
         // 加载历史记录文件
         app.load_history_file(&file_name);
         return true;
