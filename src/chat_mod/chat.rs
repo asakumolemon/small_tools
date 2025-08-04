@@ -222,8 +222,8 @@ fn chat(app: &mut App) -> bool{
     }
 
     if sm.starts_with(":save:") {
-        let file_name = sm.trim_start_matches(":save:").trim().to_string();
-        app.save(&file_name).expect("保存失败");
+        // let file_name = sm.trim_start_matches(":save:").trim().to_string();
+        // app.save(&file_name).expect("保存失败");
         return true;
     }
 
